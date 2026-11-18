@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html lang="en">
+<head>
+  <meta charset="UTF-8" />
+  <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+  <title>Multi-Vendor Order Book Dashboard</title>
+  <script src="https://cdn.tailwindcss.com"></script>
+  <script src="https://unpkg.com/lucide@latest"></script>
+  <style>
+    @import url('https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&display=swap');
+    body { font-family: 'Inter', sans-serif; }
+    .custom-scrollbar::-webkit-scrollbar { height: 6px; width: 6px; }
+    .custom-scrollbar::-webkit-scrollbar-track { background: #f1f5f9; }
+    .custom-scrollbar::-webkit-scrollbar-thumb { background: #cbd5e1; border-radius: 3px; }
+  </style>
+</head>
+<body class="bg-slate-50 text-slate-900 min-h-screen flex flex-col">
+  <header class="bg-slate-900 text-white border-b border-slate-800 sticky top-0 z-30">
+    <div class="max-w-7xl mx-auto px-4 sm:px-6 py-3.5 flex flex-wrap items-center justify-between gap-4">
+      <div class="flex items-center gap-3">
+        <div class="w-10 h-10 rounded-xl bg-indigo-600 flex items-center justify-center font-bold text-lg shadow">OB</div>
+        <div>
+          <div class="flex items-center gap-2">
+            <h1 class="font-bold text-base sm:text-lg tracking-tight">Vendor Order Book Portal</h1>
+            <span id="route-badge" class="text-xs bg-slate-800 text-indigo-300 px-2.5 py-0.5 rounded-full font-mono border border-slate-700">#/vendor/west-elm</span>
+          </div>
+          <p class="text-xs text-slate-400">Unified URL, Screenshot OCR & JSON Order Ingestion across 11 Brands</p>
+        </div>
+      </div>
+      <div class="flex items-center gap-2.5">
+        <label class="flex items-center gap-2 text-xs bg-slate-800 px-3 py-2 rounded-lg border border-slate-700 cursor-pointer">
+          <input type="checkbox" id="direct-add-toggle" checked class="rounded text-indigo-500 focus:ring-0" />
+          <span>Add directly without prompt</span>
+        </label>
+        <button onclick="exportCurrentVendorJSON()" class="text-xs bg-slate-800 hover:bg-slate-700 text-slate-200 px-3 py-2 rounded-lg border border-slate-700 flex items-center gap-1.5 transition">
+          <i data-lucide="download" class="w-3.5 h-3.5"></i> Export JSON
+        </button>
+        <button onclick="downloadThisHTML()" class="text-xs bg-indigo-600 hover:bg-indigo-500 text-white font-medium px-3.5 py-2 rounded-lg flex items-center gap-1.5 shadow transition">
+          <i data-lucide="file-code" class="w-3.5 h-3.5"></i> Download .HTML File
+        </button>
+      </div>
+    </div>
+    <div class="bg-slate-950/70 border-t border-slate-800/80">
+      <div class="max-w-7xl mx-auto px-4 sm:px-6 flex items-center gap-1.5 overflow-x-auto py-2 custom-scrollbar" id="vendor-tabs"></div>
+    </div>
+  </header>
+
+  <main class="max-w-7xl mx-auto w-full px-4 sm:px-6 py-6 space-y-6 flex-1">
+    <div class="grid grid-cols-1 lg:grid-cols-4 gap-4">
+      <div id="vendor-banner" class="lg:col-span-2 rounded-2xl p-5 text-white shadow-sm flex flex-col justify-between bg-gradient-to-r from-amber-800 to-stone-900">
+        <div class="flex items-start justify-between">
+          <div>
+            <span class="text-xs uppercase tracking-wider opacity-75 font-semibold" id="vendor-category">Home & Living</span>
+            <h2 class="text-2xl font-bold mt-0.5" id="vendor-title">West Elm</h2>
+            <p class="text-xs opacity-85 mt-1" id="vendor-subtitle">Route: #/vendor/west-elm</p>
+          </div>
+          <span class="text-xs bg-white/15 backdrop-blur px-2.5 py-1 rounded-full font-mono" id="vendor-code-pill">WESTELM</span>
+        </div>
+        <div class="mt-4 pt-3 border-t border-white/15 flex items-center justify-between text-xs">
+          <span>Supported Ingestion: <strong>URL, Screenshot OCR, JSON, CSV</strong></span>
+          <span id="last-sync-text">Synced just now</span>
+        </div>
+      </div>
+      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500 uppercase">Vendor Orders</span>
+        <div class="text-3xl font-bold text-slate-900 my-1" id="stat-count">0</div>
+        <span class="text-xs text-emerald-600 font-medium">URL • Screenshot • JSON</span>
+      </div>
+      <div class="bg-white rounded-2xl p-5 border border-slate-200/80 shadow-sm flex flex-col justify-between">
+        <span class="text-xs font-medium text-slate-500 uppercase">Total Order Book Value</span>
+        <div class="text-3xl font-bold text-slate-900 my-1" id="stat-revenue">₹0</div>
+        <span class="text-xs text-slate-500">Auto-calculated across active view</span>
+      </div>
+    </div>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="border-b border-slate-200 bg-slate-50/70 px-5 py-3 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2 flex-wrap">
+          <button onclick="switchIngestTab('url')" id="tab-btn-url" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm transition"><i data-lucide="link" class="w-3.5 h-3.5"></i> 1. Upload via Order URL</button>
+          <button onclick="switchIngestTab('screenshot')" id="tab-btn-screenshot" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-600 hover:bg-slate-200/70 transition"><i data-lucide="image" class="w-3.5 h-3.5"></i> 2. Upload Screenshot (OCR)</button>
+          <button onclick="switchIngestTab('json')" id="tab-btn-json" class="px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-600 hover:bg-slate-200/70 transition"><i data-lucide="file-json" class="w-3.5 h-3.5"></i> 3. Upload JSON / CSV</button>
+        </div>
+        <span id="ingest-status" class="text-xs text-emerald-600 font-medium hidden"></span>
+      </div>
+      <div class="p-5">
+        <div id="panel-url" class="space-y-3">
+          <div class="flex flex-col sm:flex-row gap-2.5">
+            <input id="url-input" type="text" placeholder="Paste order tracking link, invoice URL with query params, or JSON endpoint URL..." class="flex-1 rounded-xl border border-slate-300 px-3.5 py-2.5 text-sm focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+            <button onclick="handleUrlSubmit()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-sm px-5 py-2.5 rounded-xl flex items-center justify-center gap-2 shadow-sm transition"><i data-lucide="plus-circle" class="w-4 h-4"></i> Fetch & Add to Order Book</button>
+          </div>
+          <div class="flex flex-wrap items-center gap-2 pt-1">
+            <span class="text-xs text-slate-500">Quick Test URLs for <strong id="sample-vendor-label">West Elm</strong>:</span>
+            <button onclick="loadSampleUrl(1)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 transition">Sample Order Tracking URL</button>
+            <button onclick="loadSampleUrl(2)" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-2.5 py-1 rounded-md border border-slate-200 transition">Sample VIP Invoice URL</button>
+          </div>
+        </div>
+
+        <div id="panel-screenshot" class="hidden space-y-4">
+          <div class="grid grid-cols-1 md:grid-cols-2 gap-4">
+            <label class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-6 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 transition">
+              <i data-lucide="upload-cloud" class="w-8 h-8 text-indigo-600 mb-2"></i>
+              <span class="text-sm font-semibold text-slate-800">Drop order screenshot or click to browse</span>
+              <span class="text-xs text-slate-500 mt-1">Supports PNG, JPG, WEBP receipt & invoice screenshots</span>
+              <input type="file" id="screenshot-file" accept="image/*" class="hidden" onchange="handleScreenshotUpload(event)" />
+            </label>
+            <div class="rounded-xl border border-slate-200 p-4 bg-slate-50 flex flex-col justify-between">
+              <div>
+                <div class="flex items-center justify-between gap-2">
+                  <span class="text-xs font-semibold uppercase text-slate-500">Optional Gemini API Key</span>
+                  <button onclick="generateSampleScreenshotOrder()" class="text-xs bg-indigo-50 hover:bg-indigo-100 text-indigo-700 font-medium px-2.5 py-1 rounded-md border border-indigo-200 transition">Simulate Sample Receipt OCR</button>
+                </div>
+                <input id="gemini-api-key" type="password" placeholder="Gemini API Key (optional)" class="mt-2 w-full rounded-lg border border-slate-300 px-3 py-1.5 text-xs bg-white focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+              </div>
+              <p class="text-[11px] text-slate-500 mt-3">Extracts customer details and order fields directly from uploaded screenshots.</p>
+            </div>
+          </div>
+        </div>
+
+        <div id="panel-json" class="hidden space-y-3">
+          <div class="grid grid-cols-1 md:grid-cols-3 gap-4">
+            <div class="md:col-span-2">
+              <textarea id="json-textarea" rows="4" placeholder='[{"orderId":"ORD-901","customerName":"Rohan Varma","email":"rohan@example.com","items":"Leather Boots x1","total":12500}]' class="w-full rounded-xl border border-slate-300 p-3 text-xs font-mono focus:outline-none focus:ring-2 focus:ring-indigo-500"></textarea>
+              <div class="flex flex-wrap items-center justify-between gap-2 mt-2">
+                <button onclick="loadSampleJson()" class="text-xs bg-slate-100 hover:bg-slate-200 text-slate-700 px-3 py-1.5 rounded-lg border border-slate-200 transition">Load Sample Vendor JSON</button>
+                <button onclick="handleJsonPasteSubmit()" class="bg-indigo-600 hover:bg-indigo-500 text-white font-semibold text-xs px-4 py-2 rounded-lg shadow-sm transition">Import Pasted JSON</button>
+              </div>
+            </div>
+            <label class="border-2 border-dashed border-slate-300 hover:border-indigo-500 rounded-xl p-4 flex flex-col items-center justify-center text-center cursor-pointer bg-slate-50/50 transition">
+              <i data-lucide="file-up" class="w-7 h-7 text-indigo-600 mb-1.5"></i>
+              <span class="text-xs font-semibold text-slate-800">Upload .JSON or .CSV File</span>
+              <span class="text-[11px] text-slate-500 mt-1">Auto-maps name, email, order_id, items, amount</span>
+              <input type="file" id="json-file" accept=".json,.csv" class="hidden" onchange="handleJsonFileUpload(event)" />
+            </label>
+          </div>
+        </div>
+      </div>
+    </section>
+
+    <section class="bg-white rounded-2xl border border-slate-200 shadow-sm overflow-hidden">
+      <div class="p-4 sm:px-5 border-b border-slate-200 flex flex-wrap items-center justify-between gap-3">
+        <div class="flex items-center gap-2">
+          <h3 class="font-bold text-slate-900 text-sm sm:text-base">Order Book Records</h3>
+          <span id="table-vendor-badge" class="text-xs bg-indigo-50 text-indigo-700 px-2.5 py-0.5 rounded-full font-medium">West Elm</span>
+        </div>
+        <div class="flex flex-wrap items-center gap-2">
+          <input id="search-input" type="text" oninput="renderOrdersTable()" placeholder="Search order ID, name, email, item..." class="rounded-lg border border-slate-300 px-3 py-1.5 text-xs w-60 focus:outline-none focus:ring-2 focus:ring-indigo-500" />
+          <button onclick="openManualModal()" class="text-xs bg-slate-900 hover:bg-slate-800 text-white px-3 py-1.5 rounded-lg font-medium flex items-center gap-1 transition"><i data-lucide="plus" class="w-3.5 h-3.5"></i> Add / Edit Order</button>
+        </div>
+      </div>
+      <div class="overflow-x-auto custom-scrollbar">
+        <table class="w-full text-left border-collapse">
+          <thead><tr class="border-b border-slate-200 bg-slate-50/80 text-[11px] font-semibold uppercase text-slate-500">
+            <th class="py-3 px-4">Order ID & Source</th><th class="py-3 px-4">Vendor</th><th class="py-3 px-4">Customer Details</th><th class="py-3 px-4">Order Items & SKU</th><th class="py-3 px-4">Shipping Address</th><th class="py-3 px-4">Amount</th><th class="py-3 px-4">Status</th><th class="py-3 px-4 text-right">Actions</th>
+          </tr></thead>
+          <tbody id="orders-tbody" class="divide-y divide-slate-200 text-xs"></tbody>
+        </table>
+      </div>
+    </section>
+  </main>
+
+  <div id="order-modal" class="fixed inset-0 bg-slate-900/60 backdrop-blur-sm z-50 hidden items-center justify-center p-4">
+    <div class="bg-white rounded-2xl max-w-lg w-full p-5 shadow-xl border border-slate-200 space-y-4">
+      <div class="flex items-center justify-between border-b border-slate-100 pb-3"><h3 class="font-bold text-slate-900 text-base">Verify Extracted Order Details</h3><button onclick="closeModal()" class="text-slate-400 hover:text-slate-600 text-sm">✕</button></div>
+      <div class="grid grid-cols-1 sm:grid-cols-2 gap-3 text-xs">
+        <div><label class="font-medium text-slate-600">Order ID</label><input id="m-orderId" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div><label class="font-medium text-slate-600">Vendor</label><select id="m-vendor" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5"></select></div>
+        <div><label class="font-medium text-slate-600">Customer Name</label><input id="m-name" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div><label class="font-medium text-slate-600">Customer Email</label><input id="m-email" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div><label class="font-medium text-slate-600">Phone</label><input id="m-phone" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div><label class="font-medium text-slate-600">Total Amount (₹)</label><input id="m-total" type="number" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div class="sm:col-span-2"><label class="font-medium text-slate-600">Order Details / Items</label><input id="m-items" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div class="sm:col-span-2"><label class="font-medium text-slate-600">Shipping Address</label><input id="m-address" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+        <div><label class="font-medium text-slate-600">Order Status</label><select id="m-status" class="mt-1 w-full border border-slate-300 rounded-lg px-2.5 py-1.5"><option>Confirmed</option><option>Processing</option><option>Shipped</option><option>Delivered</option></select></div>
+        <div><label class="font-medium text-slate-600">Ingestion Source</label><input id="m-source" readonly class="mt-1 w-full bg-slate-100 border border-slate-300 rounded-lg px-2.5 py-1.5" /></div>
+      </div>
+      <div class="flex justify-end gap-2 pt-3 border-t border-slate-100"><button onclick="closeModal()" class="px-4 py-2 rounded-lg text-xs font-medium text-slate-600 hover:bg-slate-100">Cancel</button><button onclick="saveModalOrder()" class="px-4 py-2 rounded-lg text-xs font-semibold bg-indigo-600 text-white hover:bg-indigo-500">Save to Order Book</button></div>
+    </div>
+  </div>
+
+  <script>
+    const VENDORS = [
+      {slug:'all',name:'All 11 Vendors',code:'ALL',category:'Global Master Order Book',gradient:'from-slate-800 to-indigo-950',sampleItem:'Multi-Brand Assorted Order'},
+      {slug:'west-elm',aliases:['westelm','west-elm'],name:'West Elm',code:'WE',category:'Home & Living Decor',gradient:'from-amber-800 to-stone-900',sampleItem:'Porcelain Gold-Rim Mug Set & Mercury Glass Hurricane'},
+      {slug:'steevemadden',aliases:['steevemadden','stevemadden'],name:'Steve Madden',code:'SM',category:'Footwear & Accessories',gradient:'from-zinc-800 to-neutral-950',sampleItem:'Possession Chunky Sneakers & Leather Crossbody'},
+      {slug:'superdry',aliases:['superdry'],name:'Superdry',code:'SD',category:'Urban Streetwear & Apparel',gradient:'from-orange-700 to-slate-900',sampleItem:'Core Cargo Pants & Vintage Logo Crew Tee'},
+      {slug:'armaniexchange',aliases:['armaniexchange','ax'],name:'Armani Exchange',code:'AX',category:'Luxury Contemporary Fashion',gradient:'from-slate-900 to-neutral-800',sampleItem:'Chronograph Stainless Watch & Slim Pima Polo'},
+      {slug:'brooks',aliases:['brooks'],name:'Brooks',code:'BR',category:'Performance Running Gear',gradient:'from-blue-700 to-indigo-950',sampleItem:'Ghost 16 Road Running Shoes'},
+      {slug:'muji',aliases:['muji'],name:'MUJI',code:'MJ',category:'Minimalist Lifestyle & Home',gradient:'from-rose-900 to-stone-900',sampleItem:'Ultrasonic Aroma Diffuser & Cotton Shirt'},
+      {slug:'satya',aliases:['satya','satyapaul'],name:'Satya Paul',code:'SP',category:'Designer Sarees & Accessories',gradient:'from-fuchsia-900 to-purple-950',sampleItem:'Printed Crepe Silk Saree'},
+      {slug:'ritu',aliases:['ritu','ritukumar'],name:'Ritu Kumar',code:'RK',category:'Heritage Ethnic Couture',gradient:'from-red-900 to-amber-950',sampleItem:'Embroidered Zari Kurta Set'},
+      {slug:'gas',aliases:['gas','gasjeans'],name:'GAS Jeans',code:'GJ',category:'Premium Italian Denim',gradient:'from-sky-800 to-slate-900',sampleItem:'Stretch Clean-Wash Denim Jeans'},
+      {slug:'lamartini',aliases:['lamartini','lamartina'],name:'La Martina',code:'LM',category:'Polo Sportswear & Luxury',gradient:'from-emerald-900 to-slate-900',sampleItem:'Guards Embroidered Crest Polo Shirt'},
+      {slug:'sunglasseshut',aliases:['sunglasseshut','sunglasshut'],name:'Sunglass Hut',code:'SH',category:'Luxury Eyewear & Optics',gradient:'from-amber-600 to-red-950',sampleItem:'Ray-Ban Polarized Aviator'}
+    ];
+    const STORAGE_KEY='multi_vendor_orderbook_v1';
+    let activeVendorSlug='west-elm', orders=[];
+
+    function getInitialOrders(){
+      const customers=[['Aarav Mehta','aarav.mehta@gmail.com','+91 98490 11223','Banjara Hills, Hyderabad'],['Neha Kapoor','neha.k@outlook.com','+91 98201 44556','Bandra West, Mumbai'],['Vikramaditya Rao','vikram.rao@corp.in','+91 90001 88776','Jubilee Hills, Hyderabad'],['Priya Nair','priya.nair@yahoo.com','+91 94470 33211','Indiranagar, Bengaluru']];
+      return VENDORS.filter(v=>v.slug!=='all').map((v,i)=>{const c=customers[i%4];return{id:`${v.code}-${202601+i}`,vendorSlug:v.slug,customerName:c[0],email:c[1],phone:c[2],items:`${v.sampleItem} (Qty: 1)`,address:c[3],total:4800+i*1750,status:i%2?'Shipped':'Confirmed',source:['URL Upload','Screenshot OCR','JSON Upload'][i%3],createdAt:new Date(Date.now()-i*18000000).toISOString().slice(0,10)}});
+    }
+    function loadOrders(){const saved=localStorage.getItem(STORAGE_KEY);if(saved){try{orders=JSON.parse(saved);return}catch(e){}}orders=getInitialOrders();saveOrders();}
+    function saveOrders(){localStorage.setItem(STORAGE_KEY,JSON.stringify(orders));}
+    function detectVendorFromText(str){if(!str)return activeVendorSlug==='all'?'west-elm':activeVendorSlug;const lower=str.toLowerCase();for(const v of VENDORS){if(v.slug==='all')continue;if(lower.includes(v.slug)||(v.aliases&&v.aliases.some(a=>lower.includes(a)))||lower.includes(v.name.toLowerCase()))return v.slug;}return activeVendorSlug==='all'?'west-elm':activeVendorSlug;}
+    function getVendorObj(slug){return VENDORS.find(v=>v.slug===slug)||VENDORS[1];}
+
+    function syncHashRoute(){const hash=window.location.hash||'#/vendor/west-elm';const match=hash.match(/#\/vendor\/([a-z0-9-]+)/i);if(match&&match[1]){const found=VENDORS.find(v=>v.slug===match[1].toLowerCase()||(v.aliases&&v.aliases.includes(match[1].toLowerCase())));if(found)activeVendorSlug=found.slug;}renderAll();}
+    function selectVendor(slug){activeVendorSlug=slug;window.location.hash=`#/vendor/${slug}`;renderAll();}
+
+    function renderVendorTabs(){document.getElementById('vendor-tabs').innerHTML=VENDORS.map(v=>{const count=v.slug==='all'?orders.length:orders.filter(o=>o.vendorSlug===v.slug).length;const active=v.slug===activeVendorSlug;return`<button onclick="selectVendor('${v.slug}')" class="px-3 py-1.5 rounded-lg text-xs font-medium whitespace-nowrap flex items-center gap-1.5 transition ${active?'bg-indigo-600 text-white shadow':'text-slate-300 hover:bg-slate-800 hover:text-white'}"><span>${v.name}</span><span class="text-[10px] px-1.5 py-0.2 rounded-full ${active?'bg-indigo-800 text-indigo-100':'bg-slate-800 text-slate-400'}">${count}</span></button>`}).join('');document.getElementById('m-vendor').innerHTML=VENDORS.filter(v=>v.slug!=='all').map(v=>`<option value="${v.slug}" ${v.slug===activeVendorSlug?'selected':''}>${v.name}</option>`).join('');}
+
+    function renderHeaderAndStats(){const v=getVendorObj(activeVendorSlug);document.getElementById('route-badge').textContent=`#/vendor/${v.slug}`;document.getElementById('vendor-category').textContent=v.category;document.getElementById('vendor-title').textContent=v.name;document.getElementById('vendor-subtitle').textContent=`Active Route: #/vendor/${v.slug}`;document.getElementById('vendor-code-pill').textContent=v.code;document.getElementById('vendor-banner').className=`lg:col-span-2 rounded-2xl p-5 text-white shadow-sm flex flex-col justify-between bg-gradient-to-r ${v.gradient}`;document.getElementById('sample-vendor-label').textContent=v.slug==='all'?'West Elm':v.name;document.getElementById('table-vendor-badge').textContent=v.name;const filtered=activeVendorSlug==='all'?orders:orders.filter(o=>o.vendorSlug===activeVendorSlug);document.getElementById('stat-count').textContent=filtered.length;document.getElementById('stat-revenue').textContent='₹'+filtered.reduce((a,o)=>a+(Number(o.total)||0),0).toLocaleString('en-IN');}
+
+    function renderOrdersTable(){const q=(document.getElementById('search-input').value||'').toLowerCase();const filtered=orders.filter(o=>(activeVendorSlug==='all'||o.vendorSlug===activeVendorSlug)&&(!q||[o.id,o.customerName,o.email,o.items,o.address,o.source].some(f=>(f||'').toLowerCase().includes(q))));const tbody=document.getElementById('orders-tbody');if(!filtered.length){tbody.innerHTML=`<tr><td colspan="8" class="py-10 text-center text-slate-400">No orders found. Upload a URL, Screenshot, or JSON above.</td></tr>`;return;}tbody.innerHTML=filtered.map(o=>{const v=getVendorObj(o.vendorSlug);const badge=o.source.includes('URL')?'bg-blue-50 text-blue-700 border-blue-200':o.source.includes('Screenshot')?'bg-purple-50 text-purple-700 border-purple-200':'bg-emerald-50 text-emerald-700 border-emerald-200';return`<tr class="hover:bg-slate-50/90 transition"><td class="py-3 px-4 font-mono font-semibold text-slate-900"><div>${o.id}</div><span class="inline-block mt-1 text-[10px] font-sans px-2 py-0.5 rounded border ${badge}">${o.source}</span></td><td class="py-3 px-4"><span class="font-medium text-slate-800">${v.name}</span><div class="text-[11px] text-slate-400">${o.createdAt||'Today'}</div></td><td class="py-3 px-4"><div class="font-semibold text-slate-900">${o.customerName}</div><div class="text-slate-500">${o.email}</div><div class="text-slate-400 text-[11px]">${o.phone||''}</div></td><td class="py-3 px-4 max-w-xs"><div class="text-slate-800 font-medium">${o.items}</div></td><td class="py-3 px-4 text-slate-600 max-w-[200px]">${o.address||'—'}</td><td class="py-3 px-4 font-bold text-slate-900">₹${Number(o.total||0).toLocaleString('en-IN')}</td><td class="py-3 px-4"><span class="px-2.5 py-1 rounded-full text-[11px] font-semibold bg-emerald-50 text-emerald-700">${o.status||'Confirmed'}</span></td><td class="py-3 px-4 text-right"><button onclick="deleteOrder('${o.id}')" class="text-rose-600 hover:text-rose-800 font-medium px-2 py-1">Delete</button></td></tr>`}).join('');}
+
+    function renderAll(){renderVendorTabs();renderHeaderAndStats();renderOrdersTable();if(window.lucide)lucide.createIcons();}
+    function switchIngestTab(tab){['url','screenshot','json'].forEach(t=>{document.getElementById(`panel-${t}`).classList.toggle('hidden',t!==tab);const btn=document.getElementById(`tab-btn-${t}`);btn.className=t===tab?'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 bg-indigo-600 text-white shadow-sm transition':'px-3.5 py-1.5 rounded-lg text-xs font-semibold flex items-center gap-1.5 text-slate-600 hover:bg-slate-200/70 transition';});}
+    function showStatus(msg){const el=document.getElementById('ingest-status');el.textContent='✓ '+msg;el.classList.remove('hidden');setTimeout(()=>el.classList.add('hidden'),4500);}
+    function commitOrReviewOrder(o){if(document.getElementById('direct-add-toggle').checked){orders.unshift(o);saveOrders();renderAll();showStatus(`Added Order ${o.id} (${o.customerName}) directly to Order Book!`);}else openModalWithOrder(o);}
+
+    function loadSampleUrl(v){const slug=activeVendorSlug==='all'?'west-elm':activeVendorSlug;const x=getVendorObj(slug);document.getElementById('url-input').value=v===1?`https://orders.${x.slug}.com/track?order_id=${x.code}-${10000+Math.floor(Math.random()*89999)}&name=Karthik+Reddy&email=karthik.reddy@gmail.com&phone=+919848022334&items=${encodeURIComponent(x.sampleItem)}&total=8499&address=Hitech+City+Madhapur+Hyderabad&status=Confirmed`:`https://portal.${x.slug}.com/invoice?id=${x.code}-VIP-${100+Math.floor(Math.random()*899)}&customer=Ananya+Sharma&email=ananya.s@enterprise.in&phone=+919900112233&product=${encodeURIComponent(x.sampleItem)}&amount=14250&city=Jubilee+Hills+Hyderabad&status=Processing`;}
+    async function handleUrlSubmit(){const raw=document.getElementById('url-input').value.trim();if(!raw)return alert('Please paste an Order URL first.');const slug=detectVendorFromText(raw),v=getVendorObj(slug);try{const p=new URL(raw).searchParams;if([...p.keys()].length){commitOrReviewOrder({id:p.get('order_id')||p.get('id')||`${v.code}-${10000+Math.floor(Math.random()*89999)}`,vendorSlug:slug,customerName:p.get('name')||p.get('customer')||'URL Customer',email:p.get('email')||'customer@vendorportal.com',phone:p.get('phone')||'+91 98490 00000',items:p.get('items')||p.get('product')||v.sampleItem,address:p.get('address')||p.get('city')||'Hyderabad, Telangana',total:Number(p.get('total')||p.get('amount')||6499),status:p.get('status')||'Confirmed',source:'URL Upload',createdAt:new Date().toISOString().slice(0,10)});document.getElementById('url-input').value='';return;} }catch(e){}commitOrReviewOrder({id:`${v.code}-${10000+Math.floor(Math.random()*89999)}`,vendorSlug:slug,customerName:'Portal URL Customer',email:`orders@${v.slug}.com`,phone:'+91 90000 12345',items:`${v.sampleItem} (Extracted from URL)`,address:'Hyderabad, Telangana, India',total:7999,status:'Confirmed',source:'URL Upload',createdAt:new Date().toISOString().slice(0,10)});document.getElementById('url-input').value='';}
+
+    function generateSampleScreenshotOrder(){const slug=activeVendorSlug==='all'?'west-elm':activeVendorSlug,v=getVendorObj(slug);commitOrReviewOrder({id:`${v.code}-OCR-${1000+Math.floor(Math.random()*8999)}`,vendorSlug:slug,customerName:'Siddharth Malhotra',email:'siddharth.m@studio.in',phone:'+91 98111 67890',items:`${v.sampleItem} (Verified via Screenshot OCR)`,address:'Plot 42, Film Nagar, Hyderabad',total:11200,status:'Confirmed',source:'Screenshot OCR',createdAt:new Date().toISOString().slice(0,10)});}
+    async function handleScreenshotUpload(e){const file=e.target.files[0];if(!file)return;const apiKey=document.getElementById('gemini-api-key').value.trim(),slug=detectVendorFromText(file.name),v=getVendorObj(slug);if(apiKey){try{const base64=await fileToBase64(file);const response=await fetch(`https://generativelanguage.googleapis.com/v1beta/models/gemini-2.5-flash:generateContent?key=${apiKey}`,{method:'POST',headers:{'Content-Type':'application/json'},body:JSON.stringify({contents:[{parts:[{text:'Extract order details into strict JSON with keys orderId, customerName, email, phone, items, address, total, status.'},{inline_data:{mime_type:file.type,data:base64.split(',')[1]}}]}]})});const data=await response.json(),raw=data?.candidates?.[0]?.content?.parts?.[0]?.text||'',match=raw.match(/\{[\s\S]*\}/);if(match){const p=JSON.parse(match[0]);commitOrReviewOrder({id:p.orderId||`${v.code}-OCR-${1000+Math.floor(Math.random()*8999)}`,vendorSlug:slug,customerName:p.customerName||'Screenshot Customer',email:p.email||'ocr@customer.in',phone:p.phone||'+91 98490 55555',items:p.items||v.sampleItem,address:p.address||'Hyderabad, India',total:Number(p.total)||5999,status:p.status||'Confirmed',source:'Screenshot OCR',createdAt:new Date().toISOString().slice(0,10)});return;}}catch(err){console.warn(err);}}commitOrReviewOrder({id:`${v.code}-IMG-${1000+Math.floor(Math.random()*8999)}`,vendorSlug:slug,customerName:'Extracted Receipt Customer',email:'receipt.buyer@gmail.com',phone:'+91 98490 99887',items:`${v.sampleItem} [File: ${file.name}]`,address:'Gachibowli Financial District, Hyderabad',total:8950,status:'Confirmed',source:'Screenshot OCR',createdAt:new Date().toISOString().slice(0,10)});}
+    function fileToBase64(file){return new Promise((res,rej)=>{const r=new FileReader;r.onload=()=>res(r.result);r.onerror=rej;r.readAsDataURL(file);});}
+
+    function loadSampleJson(){const slug=activeVendorSlug==='all'?'west-elm':activeVendorSlug,v=getVendorObj(slug);document.getElementById('json-textarea').value=JSON.stringify([{orderId:`${v.code}-JSN-${1000+Math.floor(Math.random()*8999)}`,vendor:v.slug,customerName:'Divya Deshmukh',email:'divya.d@corporate.com',phone:'+91 97011 22334',items:`${v.sampleItem} (Qty: 2)`,address:'Kokapet SEZ, Hyderabad',total:15600,status:'Confirmed'}],null,2);}
+    function normalizeRecord(raw,label='JSON Upload'){const slug=detectVendorFromText(raw.vendor||raw.vendorSlug||raw.brand||''),v=getVendorObj(slug);return{id:raw.orderId||raw.id||raw.order_id||`${v.code}-${10000+Math.floor(Math.random()*89999)}`,vendorSlug:slug,customerName:raw.customerName||raw.name||raw.customer||'JSON Customer',email:raw.email||raw.customer_email||'buyer@example.com',phone:raw.phone||raw.mobile||'+91 98000 11111',items:Array.isArray(raw.items)?raw.items.join(', '):(raw.items||raw.orderDetails||raw.product||v.sampleItem),address:raw.address||raw.shippingAddress||'Hyderabad, India',total:Number(raw.total||raw.amount||raw.price||5400),status:raw.status||'Confirmed',source:label,createdAt:new Date().toISOString().slice(0,10)};}
+    function handleJsonPasteSubmit(){const text=document.getElementById('json-textarea').value.trim();if(!text)return alert('Paste valid JSON first.');try{const parsed=JSON.parse(text),list=Array.isArray(parsed)?parsed:(parsed.orders||[parsed]);list.forEach(x=>commitOrReviewOrder(normalizeRecord(x,'JSON Upload')));document.getElementById('json-textarea').value='';}catch(e){alert('Invalid JSON format. Please check syntax.');}}
+    function handleJsonFileUpload(e){const file=e.target.files[0];if(!file)return;const r=new FileReader;r.onload=x=>{const content=x.target.result;if(file.name.endsWith('.csv')){const lines=content.split(/\r?\n/).filter(Boolean);if(lines.length<2)return;const headers=lines[0].split(',').map(h=>h.trim());lines.slice(1).forEach(line=>{const vals=line.split(',').map(v=>v.trim()),obj={};headers.forEach((h,i)=>obj[h]=vals[i]);commitOrReviewOrder(normalizeRecord(obj,'CSV Upload'));});}else{try{const parsed=JSON.parse(content),list=Array.isArray(parsed)?parsed:(parsed.orders||[parsed]);list.forEach(o=>commitOrReviewOrder(normalizeRecord(o,'JSON Upload')));}catch(e){alert('Could not parse JSON file.');}}};r.readAsText(file);}
+
+    function openManualModal(){const slug=activeVendorSlug==='all'?'west-elm':activeVendorSlug,v=getVendorObj(slug);openModalWithOrder({id:`${v.code}-${10000+Math.floor(Math.random()*89999)}`,vendorSlug:slug,customerName:'',email:'',phone:'+91 ',items:v.sampleItem,address:'Hyderabad, Telangana',total:6500,status:'Confirmed',source:'Manual Entry'});}
+    function openModalWithOrder(o){document.getElementById('m-orderId').value=o.id||'';document.getElementById('m-vendor').value=o.vendorSlug==='all'?'west-elm':o.vendorSlug||'west-elm';document.getElementById('m-name').value=o.customerName||'';document.getElementById('m-email').value=o.email||'';document.getElementById('m-phone').value=o.phone||'';document.getElementById('m-total').value=o.total||0;document.getElementById('m-items').value=o.items||'';document.getElementById('m-address').value=o.address||'';document.getElementById('m-status').value=o.status||'Confirmed';document.getElementById('m-source').value=o.source||'Manual Entry';const modal=document.getElementById('order-modal');modal.classList.remove('hidden');modal.classList.add('flex');}
+    function closeModal(){const m=document.getElementById('order-modal');m.classList.add('hidden');m.classList.remove('flex');}
+    function saveModalOrder(){const o={id:document.getElementById('m-orderId').value.trim()||'ORD-999',vendorSlug:document.getElementById('m-vendor').value,customerName:document.getElementById('m-name').value.trim()||'Walk-in Customer',email:document.getElementById('m-email').value.trim()||'customer@portal.com',phone:document.getElementById('m-phone').value.trim(),total:Number(document.getElementById('m-total').value)||0,items:document.getElementById('m-items').value.trim(),address:document.getElementById('m-address').value.trim(),status:document.getElementById('m-status').value,source:document.getElementById('m-source').value,createdAt:new Date().toISOString().slice(0,10)};orders.unshift(o);saveOrders();closeModal();renderAll();showStatus(`Saved Order ${o.id} to Order Book!`);}
+    function deleteOrder(id){orders=orders.filter(o=>o.id!==id);saveOrders();renderAll();}
+    function exportCurrentVendorJSON(){const filtered=activeVendorSlug==='all'?orders:orders.filter(o=>o.vendorSlug===activeVendorSlug),blob=new Blob([JSON.stringify(filtered,null,2)],{type:'application/json'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download=`${activeVendorSlug}-orderbook.json`;a.click();}
+    function downloadThisHTML(){const blob=new Blob(['<!DOCTYPE html>\n'+document.documentElement.outerHTML],{type:'text/html'}),a=document.createElement('a');a.href=URL.createObjectURL(blob);a.download='vendor-order-dashboard.html';a.click();}
+
+    window.addEventListener('hashchange',syncHashRoute);
+    window.addEventListener('DOMContentLoaded',()=>{loadOrders();if(!window.location.hash)window.location.hash='#/vendor/west-elm';syncHashRoute();});
+  </script>
+</body>
+</html>
